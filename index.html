@@ -1,1 +1,664 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Forge Editor</title><link rel="stylesheet" href="style.css"></head><body><div id="app"></div><script src="app.js"></script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Forge — Free-form Website Builder</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+  :root{
+    --ink:#0f1116; --panel:#171a21; --panel2:#1d212a; --line:#2a2f3a;
+    --text:#eceef2; --muted:#8b90a3; --amber:#ffb545; --teal:#3ddc97; --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--ink);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;}
+  h1,h2,h3,.brand{font-family:'Space Grotesk',sans-serif;}
+  button{font-family:inherit;cursor:pointer;}
+  body.dragging, body.dragging *{user-select:none !important;cursor:grabbing !important;}
+
+  #app{display:grid;grid-template-rows:52px 1fr;height:100%;}
+  #topbar{display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);}
+  .brand{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px;}
+  .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber);}
+  .top-sep{width:1px;height:22px;background:var(--line);margin:0 4px;}
+  .tbtn{background:transparent;border:none;color:var(--muted);padding:7px 10px;border-radius:8px;font-size:13px;display:flex;align-items:center;gap:6px;}
+  .tbtn:hover{background:var(--panel2);color:var(--text);}
+  .tbtn[disabled]{opacity:.35;pointer-events:none;}
+  .spacer-flex{flex:1;}
+  .btn-primary{background:var(--amber);color:#241900;border:none;padding:8px 14px;border-radius:8px;font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px;}
+  .btn-primary:hover{filter:brightness(1.08);}
+  .btn-ghost{background:transparent;border:1px solid var(--line);color:var(--text);padding:8px 13px;border-radius:8px;font-size:13px;}
+  .btn-ghost:hover{border-color:var(--muted);}
+
+  #main{display:grid;grid-template-columns:210px 1fr 300px;height:100%;overflow:hidden;}
+  #left{background:var(--panel);border-right:1px solid var(--line);overflow-y:auto;padding:14px;}
+  .panel-title{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:4px 0 10px;}
+  .block-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .block-add{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px 6px;text-align:center;color:var(--text);font-size:11px;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .block-add:hover{border-color:var(--amber);transform:translateY(-1px);}
+  .block-add svg{width:18px;height:18px;stroke:var(--amber);}
+  .hint{font-size:12px;color:var(--muted);line-height:1.6;margin-top:18px;padding-top:14px;border-top:1px solid var(--line);}
+
+  #centerWrap{display:flex;flex-direction:column;height:100%;overflow:hidden;background:#0b0c10;}
+  #center{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:40px;background-image:radial-gradient(circle,#20242e 1px,transparent 1px);background-size:22px 22px;}
+  #artboardOuter{width:100%;max-width:1000px;}
+  #artboard{position:relative;width:100%;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.5);border-radius:2px;}
+
+  .el-wrap{position:absolute;}
+  .el-wrap.selected > .el-box{outline:2px solid var(--amber);}
+  .el-box{width:100%;height:100%;overflow:hidden;}
+  .el-wrap[data-type=text] .el-box, .el-wrap[data-type=button] .el-box{overflow:visible;}
+
+  .handle{position:absolute;width:11px;height:11px;background:#fff;border:2px solid var(--amber);border-radius:3px;z-index:50;}
+  .handle.nw{left:-6px;top:-6px;cursor:nwse-resize;}
+  .handle.ne{right:-6px;top:-6px;cursor:nesw-resize;}
+  .handle.sw{left:-6px;bottom:-6px;cursor:nesw-resize;}
+  .handle.se{right:-6px;bottom:-6px;cursor:nwse-resize;}
+  .handle.rot{left:50%;top:-30px;transform:translateX(-50%);border-radius:50%;cursor:grab;background:var(--amber);}
+  .rot-stem{position:absolute;left:50%;top:-22px;width:1px;height:22px;background:var(--amber);}
+
+  .mini-toolbar{position:absolute;top:-38px;left:0;display:flex;gap:3px;background:#17181cee;padding:4px;border-radius:8px;z-index:60;white-space:nowrap;}
+  .mini-toolbar button{width:24px;height:24px;border:none;background:transparent;color:#cfd2e0;border-radius:5px;display:flex;align-items:center;justify-content:center;}
+  .mini-toolbar button:hover{background:#2d3140;color:#fff;}
+  .mini-toolbar svg{width:13px;height:13px;}
+
+  #pageStrip{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--panel);border-top:1px solid var(--line);overflow-x:auto;}
+  .page-tab{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 12px;font-size:12px;color:var(--muted);white-space:nowrap;display:flex;align-items:center;gap:6px;}
+  .page-tab.active{color:var(--amber);border-color:var(--amber);}
+  .page-tab input{background:transparent;border:none;color:inherit;font-size:12px;width:70px;font-family:inherit;}
+  .page-tab .pdel{opacity:.5;}
+  .page-tab .pdel:hover{opacity:1;color:var(--danger);}
+  .page-add{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:8px;padding:7px 12px;font-size:12px;}
+  .page-add:hover{color:var(--amber);border-color:var(--amber);}
+
+  #right{background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;display:flex;flex-direction:column;}
+  #right .empty-note{padding:26px 18px;color:var(--muted);font-size:13px;line-height:1.6;}
+  .ptabs{display:flex;border-bottom:1px solid var(--line);}
+  .ptab{flex:1;background:transparent;border:none;color:var(--muted);padding:12px 0;font-size:12px;font-weight:600;border-bottom:2px solid transparent;}
+  .ptab.active{color:var(--amber);border-color:var(--amber);}
+  .pbody{padding:16px;display:flex;flex-direction:column;gap:14px;}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em;}
+  .field input[type=text],.field input[type=url],.field textarea,.field select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);border-radius:7px;padding:8px 9px;font-size:13px;font-family:inherit;}
+  .field textarea{resize:vertical;min-height:56px;}
+  .field input[type=color]{width:38px;height:30px;border:1px solid var(--line);border-radius:6px;background:none;padding:0;}
+  .row{display:flex;gap:8px;align-items:center;}
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:7px;overflow:hidden;flex:1;}
+  .seg button{flex:1;background:transparent;border:none;color:var(--muted);padding:7px 4px;font-size:12px;}
+  .seg button.active{background:var(--amber);color:#241900;font-weight:600;}
+  input[type=range]{width:100%;accent-color:var(--amber);}
+  .range-val{font-size:11px;color:var(--muted);float:right;}
+
+  .modal-bg{position:fixed;inset:0;background:rgba(5,6,9,.7);backdrop-filter:blur(3px);display:none;align-items:center;justify-content:center;z-index:200;}
+  .modal-bg.show{display:flex;}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:14px;width:420px;max-width:92vw;padding:20px;}
+  .modal.wide{width:min(1100px,94vw);height:88vh;padding:0;display:flex;flex-direction:column;}
+  .modal h3{margin:0 0 4px;font-size:16px;}
+  .modal .sub{color:var(--muted);font-size:12px;margin-bottom:16px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:18px;}
+  .preview-bar{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--line);}
+  #previewFrame{flex:1;width:100%;border:none;background:#fff;}
+  .close-x{background:transparent;border:none;color:var(--muted);font-size:18px;}
+  .close-x:hover{color:var(--text);}
+  #banner{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--amber);color:var(--text);padding:10px 16px;border-radius:9px;font-size:12px;z-index:300;display:none;box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#2a2f3a;border-radius:6px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+</style>
+</head>
+<body>
+<div id="banner">Tip: for smooth dragging/typing, open the exported file directly in a browser tab (not just an inline preview).</div>
+<div id="app">
+  <div id="topbar">
+    <div class="brand"><span class="dot"></span>Forge</div>
+    <div class="top-sep"></div>
+    <button class="tbtn" id="undoBtn" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 10h10a5 5 0 015 5v0a5 5 0 01-5 5H9"/><path d="M8 5 3 10l5 5"/></svg></button>
+    <button class="tbtn" id="redoBtn" title="Redo (Ctrl+Shift+Z)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 10H11a5 5 0 00-5 5v0a5 5 0 005 5h4"/><path d="M16 5l5 5-5 5"/></svg></button>
+    <div class="top-sep"></div>
+    <button class="tbtn" id="settingsBtn">⚙ Site settings</button>
+    <div class="spacer-flex"></div>
+    <button class="btn-ghost" id="previewBtn">Preview</button>
+    <button class="btn-primary" id="exportBtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M12 3v13"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/></svg>Export HTML</button>
+  </div>
+  <div id="main">
+    <div id="left">
+      <div class="panel-title">Add an element</div>
+      <div class="block-grid" id="paletteGrid"></div>
+      <div class="hint">Click an element to select it. Drag to move, corner handles to resize, top dot to rotate. Double-click text to edit it.</div>
+    </div>
+    <div id="centerWrap">
+      <div id="center"><div id="artboardOuter"><div id="artboard"></div></div></div>
+      <div id="pageStrip"></div>
+    </div>
+    <div id="right"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h3>Site settings</h3>
+    <div class="sub">Applies to the whole exported page.</div>
+    <div class="field" style="margin-bottom:12px;"><label>Site title</label><input type="text" id="siteTitle"></div>
+    <div class="field" style="margin-bottom:12px;"><label>Favicon (emoji)</label><input type="text" id="siteFavicon" maxlength="2"></div>
+    <div class="field" style="margin-bottom:12px;"><label>Accent color</label><input type="color" id="siteAccent"></div>
+    <div class="field">
+      <label>Font pairing</label>
+      <select id="siteFont">
+        <option value="grotesk-inter">Space Grotesk + Inter — modern</option>
+        <option value="playfair-source">Playfair Display + Source Sans 3 — editorial</option>
+        <option value="poppins-nunito">Poppins + Nunito Sans — friendly</option>
+        <option value="jetbrains-inter">JetBrains Mono + Inter — technical</option>
+        <option value="system">System UI — plain & fast</option>
+      </select>
+    </div>
+    <div class="modal-actions"><button class="btn-ghost" id="settingsClose">Done</button></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="previewModal">
+  <div class="modal wide">
+    <div class="preview-bar"><strong>Live preview</strong><button class="close-x" id="previewClose">✕</button></div>
+    <iframe id="previewFrame"></iframe>
+  </div>
+</div>
+
+<script>
+/* ============================ STATE ============================ */
+let uid = () => 'x'+Math.random().toString(36).slice(2,9);
+let state = {
+  site:{title:'My Website', favicon:'✨', accent:'#ffb545', font:'grotesk-inter'},
+  pages:[]
+};
+let activePageId=null, selectedElId=null, activeTab='content';
+let history=[], future=[];
+
+function getPage(){ return state.pages.find(p=>p.id===activePageId); }
+function getEl(id){ const p=getPage(); return p ? p.elements.find(e=>e.id===id) : null; }
+function snapshot(){ history.push(JSON.stringify(state)); if(history.length>60) history.shift(); future=[]; syncUndoBtns(); }
+function undo(){ if(!history.length) return; future.push(JSON.stringify(state)); state=JSON.parse(history.pop()); renderAll(); }
+function redo(){ if(!future.length) return; history.push(JSON.stringify(state)); state=JSON.parse(future.pop()); renderAll(); }
+function syncUndoBtns(){ document.getElementById('undoBtn').disabled = history.length===0; document.getElementById('redoBtn').disabled = future.length===0; }
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+/* ============================ DEFAULTS ============================ */
+function newPage(name){
+  return {id:uid(), name:name||'Page', heightUnits:720,
+    bg:{type:'solid', c1:'#ffffff', c2:'#f2f2f2', angle:135, image:''},
+    elements:[]};
+}
+function commonStyle(){
+  return {opacity:100, radius:0, shadow:'none', animation:'none', hover:'none', duration:700, delay:0};
+}
+const PALETTE = [
+  {type:'text', label:'Text', icon:'M4 6h16 M4 12h16 M4 18h10'},
+  {type:'button', label:'Button', icon:'M4 9h16v6H4z'},
+  {type:'image', label:'Image', icon:'M4 4h16v16H4z M8 12l3-3 5 5 M8 8h.01'},
+  {type:'rect', label:'Rectangle', icon:'M4 5h16v14H4z'},
+  {type:'circle', label:'Circle', icon:'M12 4a8 8 0 100 16 8 8 0 000-16z'},
+  {type:'line', label:'Line', icon:'M4 12h16'},
+  {type:'video', label:'Video', icon:'M4 5h16v14H4z M10 9l6 3-6 3z'},
+];
+function newElement(type, page){
+  const base = {id:uid(), type, x:30, y:35, w:40, h:20, rotation:0, style:commonStyle(), content:{}};
+  if(type==='text'){ base.h=12; base.content={html:'Double-click to edit this text'}; base.style={...base.style, fontSize:4.2, fontWeight:600, color:'#1a1a1a', align:'left', fontFamily:'inherit'}; }
+  if(type==='button'){ base.w=18; base.h=7; base.content={text:'Click me', link:'#'}; base.style={...base.style, fontSize:2.4, bg:'#ffb545', color:'#241900', radius:1.2}; }
+  if(type==='image'){ base.w=40; base.h=30; base.content={src:'https://images.unsplash.com/photo-1499951360447-b19be8fe80f5?w=1200&q=80', alt:'Image'}; base.style={...base.style, fit:'cover'}; }
+  if(type==='rect'){ base.w=30; base.h=20; base.content={}; base.style={...base.style, fill:'#3a2e55', stroke:'none', radius:1.5}; }
+  if(type==='circle'){ base.w=20; base.h=20; base.content={}; base.style={...base.style, fill:'#3ddc97', stroke:'none'}; }
+  if(type==='line'){ base.w=40; base.h=1; base.content={}; base.style={...base.style, fill:'#1a1a1a'}; }
+  if(type==='video'){ base.w=50; base.h=28; base.content={url:'https://www.youtube.com/embed/dQw4w9WgXcQ'}; }
+  return base;
+}
+
+/* ============================ RENDER: ARTBOARD ============================ */
+function bgCSS(bg){
+  if(bg.type==='solid') return bg.c1;
+  if(bg.type==='gradient') return `linear-gradient(${bg.angle}deg, ${bg.c1}, ${bg.c2})`;
+  if(bg.type==='image' && bg.image) return `url('${bg.image}') center/cover no-repeat`;
+  return '#ffffff';
+}
+const SHADOW = {none:'none', soft:'0 10px 30px rgba(0,0,0,.12)', strong:'0 24px 60px rgba(0,0,0,.3)'};
+
+function elWrapStyle(el){
+  return `left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;transform:rotate(${el.rotation}deg);opacity:${el.style.opacity/100};z-index:1;`;
+}
+function elBoxContent(el, editable){
+  const s = el.style, c = el.content;
+  const radius = `border-radius:${s.radius||0}cqw;`;
+  const shadow = `box-shadow:${SHADOW[s.shadow]};`;
+  switch(el.type){
+    case 'text':
+      return `<div class="txt" ${editable?`contenteditable="false" data-id="${el.id}"`:''} style="width:100%;height:100%;font-size:${s.fontSize}cqw;font-weight:${s.fontWeight};color:${s.color};text-align:${s.align};font-family:${s.fontFamily==='inherit'?'inherit':s.fontFamily};line-height:1.25;display:flex;align-items:flex-start;">${c.html}</div>`;
+    case 'button':
+      return `<a href="${c.link}" class="hov-${s.hover}" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;background:${s.bg};color:${s.color};font-size:${s.fontSize}cqw;font-weight:600;text-decoration:none;${radius}${shadow}" ${editable?`contenteditable="false" data-id="${el.id}"`:''}>${c.text}</a>`;
+    case 'image':
+      return `<img src="${c.src}" alt="${c.alt}" style="width:100%;height:100%;object-fit:${s.fit};display:block;${radius}${shadow}">`;
+    case 'rect':
+      return `<div style="width:100%;height:100%;background:${s.fill};${radius}${shadow}${s.stroke!=='none'?`border:2px solid ${s.stroke};`:''}"></div>`;
+    case 'circle':
+      return `<div style="width:100%;height:100%;background:${s.fill};border-radius:50%;${shadow}${s.stroke!=='none'?`border:2px solid ${s.stroke};`:''}"></div>`;
+    case 'line':
+      return `<div style="width:100%;height:100%;background:${s.fill};"></div>`;
+    case 'video':
+      return `<iframe src="${c.url}" style="width:100%;height:100%;border:none;${radius}" allowfullscreen></iframe>`;
+    default: return '';
+  }
+}
+
+function renderArtboard(){
+  const page = getPage();
+  const artboard = document.getElementById('artboard');
+  if(!page){ artboard.innerHTML=''; return; }
+  artboard.style.aspectRatio = `1280 / ${page.heightUnits}`;
+  artboard.style.background = bgCSS(page.bg);
+  artboard.style.containerType = 'inline-size';
+  artboard.innerHTML = page.elements.map(el=>{
+    const anim = el.style.animation!=='none' ? `anim-${el.style.animation}` : '';
+    const hov = el.type!=='button' && el.style.hover!=='none' ? `hov-${el.style.hover}` : '';
+    return `<div class="el-wrap ${el.id===selectedElId?'selected':''}" data-id="${el.id}" data-type="${el.type}" style="${elWrapStyle(el)}">
+      <div class="el-box ${anim} ${hov}">${elBoxContent(el, true)}</div>
+      ${el.id===selectedElId? selectionChrome(el.type) : ''}
+    </div>`;
+  }).join('');
+  wireArtboardEvents();
+}
+function selectionChrome(type){
+  return `
+    <div class="mini-toolbar">
+      <button data-act="back" title="Send backward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h10v10H4z"/><path d="M10 10h10v10H10z" stroke-dasharray="2 2"/></svg></button>
+      <button data-act="front" title="Bring forward"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 10h10v10H10z"/><path d="M4 4h10v10H4z" stroke-dasharray="2 2"/></svg></button>
+      <button data-act="dup" title="Duplicate"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 012-2h10"/></svg></button>
+      <button data-act="del" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/></svg></button>
+    </div>
+    <div class="rot-stem"></div>
+    <div class="handle rot" data-handle="rot"></div>
+    <div class="handle nw" data-handle="nw"></div>
+    <div class="handle ne" data-handle="ne"></div>
+    <div class="handle sw" data-handle="sw"></div>
+    <div class="handle se" data-handle="se"></div>`;
+}
+
+/* ============================ INTERACTIONS ============================ */
+function wireArtboardEvents(){
+  document.querySelectorAll('.el-wrap').forEach(wrap=>{
+    const id = wrap.dataset.id;
+    wrap.addEventListener('pointerdown', (e)=>{
+      const handle = e.target.closest('[data-handle]');
+      const act = e.target.closest('[data-act]');
+      if(act){ e.stopPropagation(); handleMiniAction(act.dataset.act, id); return; }
+      const txt = e.target.closest('.txt, a');
+      if(txt && txt.getAttribute('contenteditable')==='true') return; // let editing happen
+      if(!handle && selectedElId!==id){ selectElement(id); }
+      if(handle){ startTransform(e, id, 'resize', handle.dataset.handle==='rot'?'rot':handle.dataset.handle); }
+      else { startTransform(e, id, 'move'); }
+    });
+    const txtEl = wrap.querySelector('.txt, a[contenteditable]');
+    if(txtEl){
+      wrap.addEventListener('dblclick', (e)=>{
+        e.stopPropagation();
+        txtEl.setAttribute('contenteditable','true');
+        txtEl.focus();
+        placeCaretEnd(txtEl);
+      });
+      txtEl.addEventListener('blur', ()=>{
+        txtEl.setAttribute('contenteditable','false');
+        const el = getEl(id); if(!el) return;
+        snapshot();
+        if(el.type==='text') el.content.html = txtEl.innerHTML;
+        if(el.type==='button') el.content.text = txtEl.innerText;
+      });
+    }
+  });
+}
+function placeCaretEnd(el){
+  const range=document.createRange(); range.selectNodeContents(el); range.collapse(false);
+  const sel=window.getSelection(); sel.removeAllRanges(); sel.addRange(range);
+}
+function handleMiniAction(act, id){
+  const page = getPage();
+  const i = page.elements.findIndex(e=>e.id===id);
+  snapshot();
+  if(act==='dup'){ const copy=JSON.parse(JSON.stringify(page.elements[i])); copy.id=uid(); copy.x=clamp(copy.x+3,0,100-copy.w); copy.y=clamp(copy.y+3,0,100-copy.h); page.elements.splice(i+1,0,copy); selectedElId=copy.id; }
+  if(act==='del'){ page.elements.splice(i,1); selectedElId=null; }
+  if(act==='front'){ const [m]=page.elements.splice(i,1); page.elements.push(m); }
+  if(act==='back'){ const [m]=page.elements.splice(i,1); page.elements.unshift(m); }
+  renderAll();
+}
+
+function startTransform(e, id, mode, handle){
+  e.preventDefault(); e.stopPropagation();
+  const el = getEl(id); if(!el) return;
+  selectElement(id);
+  const artboard = document.getElementById('artboard');
+  const rect = artboard.getBoundingClientRect();
+  const start = {mx:e.clientX, my:e.clientY, x:el.x, y:el.y, w:el.w, h:el.h, rot:el.rotation};
+  document.body.classList.add('dragging');
+  const wrapEl = artboard.querySelector(`.el-wrap[data-id="${id}"]`);
+
+  function onMove(ev){
+    const dxPct = ((ev.clientX-start.mx)/rect.width)*100;
+    const dyPct = ((ev.clientY-start.my)/rect.height)*100;
+    if(mode==='move'){
+      el.x = clamp(start.x+dxPct, 0, 100-el.w);
+      el.y = clamp(start.y+dyPct, 0, 100-el.h);
+    } else if(mode==='resize' && handle==='rot'){
+      const cx = rect.left + (start.x+start.w/2)/100*rect.width;
+      const cy = rect.top + (start.y+start.h/2)/100*rect.height;
+      let ang = Math.atan2(ev.clientY-cy, ev.clientX-cx)*180/Math.PI + 90;
+      ang = Math.round(ang);
+      el.rotation = ang;
+    } else if(mode==='resize'){
+      const minW=4, minH=2;
+      let {x,y,w,h}=start;
+      if(handle.includes('e')) w = clamp(start.w+dxPct, minW, 100-start.x);
+      if(handle.includes('s')) h = clamp(start.h+dyPct, minH, 100-start.y);
+      if(handle.includes('w')){ w = clamp(start.w-dxPct, minW, start.x+start.w); x = start.x+start.w-w; }
+      if(handle.includes('n')){ h = clamp(start.h-dyPct, minH, start.y+start.h); y = start.y+start.h-h; }
+      el.x=x; el.y=y; el.w=w; el.h=h;
+    }
+    if(wrapEl) wrapEl.style.cssText += elWrapStyle(el);
+  }
+  function onUp(){
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.body.classList.remove('dragging');
+    snapshot(); renderRight();
+  }
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+function selectElement(id){ selectedElId=id; activeTab='content'; renderArtboard(); renderRight(); }
+document.getElementById('artboard').addEventListener('pointerdown', (e)=>{
+  if(e.target.id==='artboard'){ selectedElId=null; renderArtboard(); renderRight(); }
+});
+document.addEventListener('keydown', (e)=>{
+  const activeEditable = document.activeElement && document.activeElement.getAttribute && document.activeElement.getAttribute('contenteditable')==='true';
+  if(activeEditable) return;
+  if((e.key==='Delete'||e.key==='Backspace') && selectedElId){ handleMiniAction('del', selectedElId); }
+  if((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey){ e.preventDefault(); undo(); }
+  if((e.ctrlKey||e.metaKey) && (e.key==='y'||(e.key==='z'&&e.shiftKey))){ e.preventDefault(); redo(); }
+});
+
+/* ============================ PAGE STRIP ============================ */
+function renderPageStrip(){
+  const strip = document.getElementById('pageStrip');
+  strip.innerHTML = state.pages.map(p=>`
+    <div class="page-tab ${p.id===activePageId?'active':''}" data-page="${p.id}">
+      <span>${p.name}</span>
+      <span class="pdel" data-pagedel="${p.id}">✕</span>
+    </div>`).join('') + `<button class="page-add" id="addPageBtn">+ Add page</button>`;
+  strip.querySelectorAll('[data-page]').forEach(t=> t.addEventListener('pointerdown', (e)=>{
+    if(e.target.closest('[data-pagedel]')) return;
+    activePageId = t.dataset.page; selectedElId=null; renderAll();
+  }));
+  strip.querySelectorAll('[data-pagedel]').forEach(x=> x.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    if(state.pages.length<=1) return;
+    snapshot();
+    const i = state.pages.findIndex(p=>p.id===x.dataset.pagedel);
+    state.pages.splice(i,1);
+    if(activePageId===x.dataset.pagedel) activePageId = state.pages[Math.max(0,i-1)].id;
+    renderAll();
+  }));
+  document.getElementById('addPageBtn').onclick = ()=>{
+    snapshot();
+    const p = newPage('Page '+(state.pages.length+1));
+    state.pages.push(p); activePageId=p.id; selectedElId=null; renderAll();
+  };
+}
+
+/* ============================ RIGHT PANEL ============================ */
+function renderRight(){
+  const right = document.getElementById('right');
+  const el = selectedElId ? getEl(selectedElId) : null;
+  if(!el){
+    const page = getPage();
+    right.innerHTML = page ? pageSettingsHTML(page) : `<div class="empty-note">Add a page to get started.</div>`;
+    wirePageFields(page);
+    return;
+  }
+  right.innerHTML = `
+    <div class="ptabs">
+      <button class="ptab ${activeTab==='content'?'active':''}" data-tab="content">Content</button>
+      <button class="ptab ${activeTab==='style'?'active':''}" data-tab="style">Style</button>
+      <button class="ptab ${activeTab==='fx'?'active':''}" data-tab="fx">Effects</button>
+    </div>
+    <div class="pbody" id="pbody"></div>`;
+  document.querySelectorAll('.ptab').forEach(t=> t.onclick=()=>{ activeTab=t.dataset.tab; renderRight(); });
+  const body = document.getElementById('pbody');
+  if(activeTab==='content') body.innerHTML = contentFields(el);
+  if(activeTab==='style') body.innerHTML = styleFields(el);
+  if(activeTab==='fx') body.innerHTML = fxFields(el);
+  wireElementFields(el);
+}
+function pageSettingsHTML(page){
+  return `<div class="pbody">
+    <div class="panel-title" style="margin-top:0;">Page settings</div>
+    <div class="field"><label>Name</label><input type="text" id="pgName" value="${page.name}"></div>
+    <div class="field"><label>Background</label><div class="seg" id="pgBgType">
+      ${['solid','gradient','image'].map(t=>`<button class="${page.bg.type===t?'active':''}" data-val="${t}">${t}</button>`).join('')}</div></div>
+    ${page.bg.type==='solid'?`<div class="field"><label>Color</label><input type="color" id="pgC1" value="${page.bg.c1}"></div>`:''}
+    ${page.bg.type==='gradient'?`
+      <div class="field"><label>Color A</label><input type="color" id="pgC1" value="${page.bg.c1}"></div>
+      <div class="field"><label>Color B</label><input type="color" id="pgC2" value="${page.bg.c2}"></div>
+      <div class="field"><label>Angle <span class="range-val">${page.bg.angle}°</span></label><input type="range" id="pgAngle" min="0" max="360" value="${page.bg.angle}"></div>`:''}
+    ${page.bg.type==='image'?`<div class="field"><label>Image URL</label><input type="text" id="pgImage" value="${page.bg.image}"></div>`:''}
+    <div class="field"><label>Page height <span class="range-val">${page.heightUnits}px @ 1280 wide</span></label><input type="range" id="pgHeight" min="300" max="1600" step="10" value="${page.heightUnits}"></div>
+    <div style="font-size:12px;color:var(--muted);line-height:1.6;">Nothing selected — click an element on the canvas to edit it, or add one from the left panel.</div>
+  </div>`;
+}
+function wirePageFields(page){
+  if(!page) return;
+  const commit = (fn)=>{ snapshot(); fn(); renderArtboard(); renderPageStrip(); };
+  const nm = document.getElementById('pgName'); if(nm) nm.onchange = ()=> commit(()=>page.name=nm.value||'Page');
+  const bgType = document.getElementById('pgBgType');
+  if(bgType) bgType.querySelectorAll('button').forEach(b=> b.onclick=()=> commit(()=>{ page.bg.type=b.dataset.val; renderRight(); }));
+  const c1=document.getElementById('pgC1'); if(c1) c1.onchange=()=>commit(()=>page.bg.c1=c1.value);
+  const c2=document.getElementById('pgC2'); if(c2) c2.onchange=()=>commit(()=>page.bg.c2=c2.value);
+  const ang=document.getElementById('pgAngle'); if(ang){ ang.oninput=()=>{page.bg.angle=+ang.value; renderArtboard();}; ang.onchange=()=>commit(()=>{}); }
+  const img=document.getElementById('pgImage'); if(img) img.onchange=()=>commit(()=>page.bg.image=img.value);
+  const h=document.getElementById('pgHeight'); if(h){ h.oninput=()=>{page.heightUnits=+h.value; renderArtboard();}; h.onchange=()=>commit(()=>{}); }
+}
+
+function contentFields(el){
+  const c = el.content;
+  switch(el.type){
+    case 'text': return `<div class="field"><label>Text</label><textarea id="fText" style="min-height:90px;">${el.content.html.replace(/<[^>]+>/g,'')}</textarea></div><div style="font-size:12px;color:var(--muted);">Or double-click the text on the canvas to edit it in place with rich formatting.</div>`;
+    case 'button': return `<div class="field"><label>Button text</label><input type="text" id="fText" value="${c.text}"></div><div class="field"><label>Link</label><input type="text" id="fLink" value="${c.link}"></div>`;
+    case 'image': return `<div class="field"><label>Image URL</label><input type="text" id="fSrc" value="${c.src}"></div><div class="field"><label>Alt text</label><input type="text" id="fAlt" value="${c.alt}"></div><div class="field"><label>Fit</label><div class="seg" id="fFit">${['cover','contain'].map(v=>`<button class="${el.style.fit===v?'active':''}" data-val="${v}">${v}</button>`).join('')}</div></div>`;
+    case 'video': return `<div class="field"><label>Embed URL</label><input type="text" id="fUrl" value="${c.url}"></div>`;
+    case 'rect': case 'circle': case 'line': return `<div style="font-size:12px;color:var(--muted);">Shape colors live in the Style tab.</div>`;
+    default: return '';
+  }
+}
+function styleFields(el){
+  const s = el.style;
+  const colors = ['#ffffff','#0f1116','#ffb545','#3ddc97','#f4f1ea','#1a1a2e','#ff6b6b','#6c5ce7'];
+  let extra = '';
+  if(el.type==='text'){
+    extra = `
+      <div class="field"><label>Font size <span class="range-val">${s.fontSize}cqw</span></label><input type="range" id="sFontSize" min="1" max="14" step="0.2" value="${s.fontSize}"></div>
+      <div class="field"><label>Weight</label><div class="seg" id="sWeight">${[400,600,700].map(w=>`<button class="${s.fontWeight==w?'active':''}" data-val="${w}">${w===400?'Regular':w===600?'Semibold':'Bold'}</button>`).join('')}</div></div>
+      <div class="field"><label>Color</label><input type="color" id="sColor" value="${s.color}"></div>
+      <div class="field"><label>Align</label><div class="seg" id="sAlign">${['left','center','right'].map(a=>`<button class="${s.align===a?'active':''}" data-val="${a}">${a}</button>`).join('')}</div></div>`;
+  }
+  if(el.type==='button'){
+    extra = `
+      <div class="field"><label>Font size <span class="range-val">${s.fontSize}cqw</span></label><input type="range" id="sFontSize" min="1" max="6" step="0.1" value="${s.fontSize}"></div>
+      <div class="field"><label>Background</label><input type="color" id="sBg" value="${s.bg}"></div>
+      <div class="field"><label>Text color</label><input type="color" id="sColor" value="${s.color}"></div>
+      <div class="field"><label>Corner radius <span class="range-val">${s.radius}cqw</span></label><input type="range" id="sRadius" min="0" max="8" step="0.2" value="${s.radius}"></div>`;
+  }
+  if(el.type==='image'){
+    extra = `<div class="field"><label>Corner radius <span class="range-val">${s.radius}cqw</span></label><input type="range" id="sRadius" min="0" max="8" step="0.2" value="${s.radius}"></div>`;
+  }
+  if(el.type==='rect'||el.type==='circle'||el.type==='line'){
+    extra = `
+      <div class="field"><label>Fill color</label><div class="row"><input type="color" id="sFill" value="${s.fill}"><div style="display:flex;gap:6px;flex-wrap:wrap;">${colors.map(c=>`<span class="swatch" style="width:20px;height:20px;border-radius:5px;border:1px solid var(--line);cursor:pointer;background:${c}" data-fillswatch="${c}"></span>`).join('')}</div></div></div>
+      ${el.type==='rect'?`<div class="field"><label>Corner radius <span class="range-val">${s.radius}cqw</span></label><input type="range" id="sRadius" min="0" max="10" step="0.2" value="${s.radius}"></div>`:''}`;
+  }
+  return `
+    ${extra}
+    <div class="field"><label>Opacity <span class="range-val">${s.opacity}%</span></label><input type="range" id="sOpacity" min="10" max="100" value="${s.opacity}"></div>
+    ${el.type==='rect'||el.type==='image'?`<div class="field"><label>Shadow</label><div class="seg" id="sShadow">${['none','soft','strong'].map(a=>`<button class="${s.shadow===a?'active':''}" data-val="${a}">${a}</button>`).join('')}</div></div>`:''}
+  `;
+}
+function fxFields(el){
+  const s = el.style;
+  const anims = ['none','fade','fade-up','fade-down','slide-left','slide-right','zoom'];
+  const hovers = ['none','lift','grow','glow','tilt'];
+  return `
+    <div class="field"><label>Entrance animation (scroll into view)</label><select id="sAnim">${anims.map(a=>`<option value="${a}" ${s.animation===a?'selected':''}>${a}</option>`).join('')}</select></div>
+    <div class="field"><label>Duration <span class="range-val">${s.duration}ms</span></label><input type="range" id="sDur" min="150" max="2000" step="50" value="${s.duration}"></div>
+    <div class="field"><label>Delay <span class="range-val">${s.delay}ms</span></label><input type="range" id="sDelay" min="0" max="1200" step="50" value="${s.delay}"></div>
+    ${el.type!=='text'?`<div class="field"><label>Hover effect</label><select id="sHover">${hovers.map(a=>`<option value="${a}" ${s.hover===a?'selected':''}>${a}</option>`).join('')}</select></div>`:''}
+  `;
+}
+function wireElementFields(el){
+  const commitStyle=(fn)=>{ snapshot(); fn(); renderArtboard(); };
+  const commitContent=(fn)=>{ snapshot(); fn(); renderArtboard(); };
+  const byId=(id)=>document.getElementById(id);
+  if(byId('fText')) byId('fText').onchange=(e)=>commitContent(()=>{ if(el.type==='text') el.content.html=e.target.value; else el.content.text=e.target.value; });
+  if(byId('fLink')) byId('fLink').onchange=(e)=>commitContent(()=>el.content.link=e.target.value);
+  if(byId('fSrc')) byId('fSrc').onchange=(e)=>commitContent(()=>el.content.src=e.target.value);
+  if(byId('fAlt')) byId('fAlt').onchange=(e)=>commitContent(()=>el.content.alt=e.target.value);
+  if(byId('fUrl')) byId('fUrl').onchange=(e)=>commitContent(()=>el.content.url=e.target.value);
+  if(byId('fFit')) byId('fFit').querySelectorAll('button').forEach(b=>b.onclick=()=>commitStyle(()=>{el.style.fit=b.dataset.val; renderRight();}));
+
+  if(byId('sFontSize')){ byId('sFontSize').oninput=(e)=>{el.style.fontSize=+e.target.value; renderArtboard();}; byId('sFontSize').onchange=()=>commitStyle(()=>renderRight()); }
+  if(byId('sWeight')) byId('sWeight').querySelectorAll('button').forEach(b=>b.onclick=()=>commitStyle(()=>{el.style.fontWeight=+b.dataset.val; renderRight();}));
+  if(byId('sColor')) byId('sColor').onchange=(e)=>commitStyle(()=>el.style.color=e.target.value);
+  if(byId('sAlign')) byId('sAlign').querySelectorAll('button').forEach(b=>b.onclick=()=>commitStyle(()=>{el.style.align=b.dataset.val; renderRight();}));
+  if(byId('sBg')) byId('sBg').onchange=(e)=>commitStyle(()=>el.style.bg=e.target.value);
+  if(byId('sRadius')){ byId('sRadius').oninput=(e)=>{el.style.radius=+e.target.value; renderArtboard();}; byId('sRadius').onchange=()=>commitStyle(()=>renderRight()); }
+  if(byId('sFill')) byId('sFill').onchange=(e)=>commitStyle(()=>el.style.fill=e.target.value);
+  document.querySelectorAll('[data-fillswatch]').forEach(sw=> sw.onclick=()=>commitStyle(()=>{el.style.fill=sw.dataset.fillswatch; renderRight();}));
+  if(byId('sOpacity')){ byId('sOpacity').oninput=(e)=>{el.style.opacity=+e.target.value; renderArtboard();}; byId('sOpacity').onchange=()=>commitStyle(()=>renderRight()); }
+  if(byId('sShadow')) byId('sShadow').querySelectorAll('button').forEach(b=>b.onclick=()=>commitStyle(()=>{el.style.shadow=b.dataset.val; renderRight();}));
+  if(byId('sAnim')) byId('sAnim').onchange=(e)=>commitStyle(()=>el.style.animation=e.target.value);
+  if(byId('sHover')) byId('sHover').onchange=(e)=>commitStyle(()=>el.style.hover=e.target.value);
+  if(byId('sDur')){ byId('sDur').oninput=(e)=>{el.style.duration=+e.target.value;}; byId('sDur').onchange=()=>commitStyle(()=>renderRight()); }
+  if(byId('sDelay')){ byId('sDelay').oninput=(e)=>{el.style.delay=+e.target.value;}; byId('sDelay').onchange=()=>commitStyle(()=>renderRight()); }
+}
+
+/* ============================ PALETTE ============================ */
+document.getElementById('paletteGrid').innerHTML = PALETTE.map(p=>`
+  <button class="block-add" data-type="${p.type}">
+    <svg viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round">${p.icon.split(' M').map((seg,i)=>`<path d="${i===0?seg:'M'+seg}"/>`).join('')}</svg>
+    ${p.label}
+  </button>`).join('');
+document.getElementById('paletteGrid').addEventListener('click', e=>{
+  const btn = e.target.closest('[data-type]'); if(!btn) return;
+  const page = getPage(); if(!page) return;
+  snapshot();
+  const el = newElement(btn.dataset.type, page);
+  page.elements.push(el);
+  selectedElId = el.id; activeTab='content';
+  renderAll();
+});
+
+/* ============================ TOPBAR ============================ */
+document.getElementById('undoBtn').onclick = undo;
+document.getElementById('redoBtn').onclick = redo;
+const settingsModal = document.getElementById('settingsModal');
+document.getElementById('settingsBtn').onclick = ()=>{
+  document.getElementById('siteTitle').value = state.site.title;
+  document.getElementById('siteFavicon').value = state.site.favicon;
+  document.getElementById('siteAccent').value = state.site.accent;
+  document.getElementById('siteFont').value = state.site.font;
+  settingsModal.classList.add('show');
+};
+document.getElementById('settingsClose').onclick = ()=>{
+  snapshot();
+  state.site.title = document.getElementById('siteTitle').value || 'My Website';
+  state.site.favicon = document.getElementById('siteFavicon').value || '✨';
+  state.site.accent = document.getElementById('siteAccent').value;
+  state.site.font = document.getElementById('siteFont').value;
+  settingsModal.classList.remove('show');
+};
+const previewModal = document.getElementById('previewModal');
+document.getElementById('previewBtn').onclick = ()=>{ document.getElementById('previewFrame').srcdoc = buildExportHTML(); previewModal.classList.add('show'); };
+document.getElementById('previewClose').onclick = ()=> previewModal.classList.remove('show');
+document.getElementById('exportBtn').onclick = ()=>{
+  const html = buildExportHTML();
+  const blob = new Blob([html], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.site.title||'website').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')+'.html';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+
+/* ============================ EXPORT ============================ */
+const FONT_MAP = {
+  'grotesk-inter': {head:"'Space Grotesk',sans-serif", body:"'Inter',sans-serif", link:"family=Space+Grotesk:wght@500;700&family=Inter:wght@400;600"},
+  'playfair-source': {head:"'Playfair Display',serif", body:"'Source Sans 3',sans-serif", link:"family=Playfair+Display:wght@600;700&family=Source+Sans+3:wght@400;600"},
+  'poppins-nunito': {head:"'Poppins',sans-serif", body:"'Nunito Sans',sans-serif", link:"family=Poppins:wght@500;700&family=Nunito+Sans:wght@400;600"},
+  'jetbrains-inter': {head:"'JetBrains Mono',monospace", body:"'Inter',sans-serif", link:"family=JetBrains+Mono:wght@500;700&family=Inter:wght@400;600"},
+  'system': {head:"-apple-system,Segoe UI,sans-serif", body:"-apple-system,Segoe UI,sans-serif", link:''}
+};
+function buildExportHTML(){
+  const f = FONT_MAP[state.site.font];
+  const pagesHTML = state.pages.map(page=>{
+    const elsHTML = page.elements.map(el=>{
+      const anim = el.style.animation!=='none' ? ` reveal anim-${el.style.animation}` : '';
+      const hov = el.type!=='button' && el.style.hover!=='none' ? ` hov-${el.style.hover}` : '';
+      return `<div class="el-wrap" style="position:absolute;${elWrapStyle(el)}"><div class="el-box${anim}${hov}" style="width:100%;height:100%;--dur:${el.style.duration}ms;--del:${el.style.delay}ms;">${elBoxContent(el,false)}</div></div>`;
+    }).join('\n');
+    return `<section style="position:relative;width:100%;aspect-ratio:1280/${page.heightUnits};container-type:inline-size;background:${bgCSS(page.bg)};overflow:hidden;">${elsHTML}</section>`;
+  }).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${state.site.title}</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>${state.site.favicon}</text></svg>">
+${f.link?`<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?${f.link}&display=swap" rel="stylesheet">`:''}
+<style>
+  :root{ --accent:${state.site.accent}; }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:${f.body};color:#1a1a1a;}
+  h1,h2,h3{font-family:${f.head};}
+  a{text-decoration:none;transition:transform .2s ease, filter .2s ease, box-shadow .2s ease;}
+  .hov-lift:hover{transform:translateY(-4px);}
+  .hov-grow:hover{transform:scale(1.04);}
+  .hov-glow:hover{box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 35%, transparent);}
+  .hov-tilt:hover{transform:rotate(-1deg) scale(1.02);}
+  .reveal{opacity:0;transition:opacity var(--dur,700ms) ease var(--del,0ms), transform var(--dur,700ms) cubic-bezier(.2,.7,.3,1) var(--del,0ms);}
+  .anim-fade{opacity:0;}
+  .anim-fade-up{transform:translateY(28px);}
+  .anim-fade-down{transform:translateY(-28px);}
+  .anim-slide-left{transform:translateX(-40px);}
+  .anim-slide-right{transform:translateX(40px);}
+  .anim-zoom{transform:scale(.9);}
+  .reveal.in-view{opacity:1;transform:none;}
+  @media (prefers-reduced-motion: reduce){ .reveal{transition:none;opacity:1;transform:none;} }
+</style>
+</head>
+<body>
+${pagesHTML}
+<script>
+  const io = new IntersectionObserver((entries)=>{ entries.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in-view'); io.unobserve(en.target);} }); }, {threshold:.15});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+<\/script>
+</body>
+</html>`;
+}
+
+/* ============================ INIT ============================ */
+function renderAll(){ renderArtboard(); renderRight(); renderPageStrip(); syncUndoBtns(); }
+
+const p1 = newPage('Home');
+p1.bg = {type:'gradient', c1:'#171a21', c2:'#3a2e55', angle:135, image:''};
+p1.elements = [
+  {id:uid(), type:'text', x:10, y:22, w:60, h:20, rotation:0, style:{...commonStyle(), fontSize:6.5, fontWeight:700, color:'#ffffff', align:'left', fontFamily:'inherit', animation:'fade-up', hover:'none'}, content:{html:'Build something people remember'}},
+  {id:uid(), type:'text', x:10, y:44, w:46, h:14, rotation:0, style:{...commonStyle(), fontSize:2.6, fontWeight:400, color:'#dcdce6', align:'left', fontFamily:'inherit', animation:'fade-up', delay:150}, content:{html:'A free-form canvas — drag anything anywhere, export a real HTML file when done.'}},
+  {id:uid(), type:'button', x:10, y:60, w:18, h:7, rotation:0, style:{...commonStyle(), fontSize:2.4, bg:'#ffb545', color:'#241900', radius:1.2, animation:'fade-up', delay:300, hover:'grow'}, content:{text:'Get started', link:'#'}},
+];
+state.pages = [p1];
+activePageId = p1.id;
+renderAll();
+</script>
+</body>
+</html>
